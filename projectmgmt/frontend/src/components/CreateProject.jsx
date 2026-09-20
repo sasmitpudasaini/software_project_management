@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import './usermanagement.css';
+import './projects.css';
+import './curd.css';
 
-// Helper function to extract Django CSRF token from cookies
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -16,7 +18,6 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Helper function to dynamically calculate status based on start and end dates
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
   
@@ -42,24 +43,35 @@ export default function CreateProject({ onBack }) {
   const [allSystemUsers, setAllSystemUsers] = useState([]);
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
-    loadSystemUsers();
-    try {
-      const usr = JSON.parse(localStorage.getItem('user') || localStorage.getItem('current_user') || '{}');
-      setCurrentUser(usr);
-    } catch (e) {
-      console.error('Failed to parse current user from localStorage', e);
-    }
+    loadInitialData();
   }, []);
 
-  // Automatically update status whenever start or end date changes
-  useEffect(() => {
-    const calculated = getDynamicStatus(startDate, endDate);
-    setProjectStatus(calculated);
-  }, [startDate, endDate]);
+  const loadInitialData = async () => {
+    try {
+      const userRes = await fetch('http://localhost:8000/api/auth/current-user/', {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setCurrentUser(userData.user || userData.data || userData);
+      } else {
+        const usr = JSON.parse(localStorage.getItem('user') || localStorage.getItem('current_user') || '{}');
+        setCurrentUser(usr);
+      }
+    } catch (e) {
+      try {
+        const usr = JSON.parse(localStorage.getItem('user') || localStorage.getItem('current_user') || '{}');
+        setCurrentUser(usr);
+      } catch (err) {
+        console.error('Failed to parse current user', err);
+      }
+    }
 
-  const loadSystemUsers = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/users/', {
         credentials: 'include'
@@ -69,7 +81,6 @@ export default function CreateProject({ onBack }) {
         const usersData = Array.isArray(data) ? data : (data.results || data.data || []);
         setAllSystemUsers(usersData);
       } else {
-        console.error('Failed to fetch users from database API');
         setAllSystemUsers([]);
       }
     } catch (err) {
@@ -77,6 +88,11 @@ export default function CreateProject({ onBack }) {
       setAllSystemUsers([]);
     }
   };
+
+  useEffect(() => {
+    const calculated = getDynamicStatus(startDate, endDate);
+    setProjectStatus(calculated);
+  }, [startDate, endDate]);
 
   const getUserDisplayInfo = (identifier) => {
     const sysUser = allSystemUsers.find(u => 
@@ -105,28 +121,31 @@ export default function CreateProject({ onBack }) {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
 
     const initialUserPermissions = {};
     assignedUsers.forEach(uname => {
       initialUserPermissions[uname] = { read: true, edit: false };
     });
 
-    // Resolve created_by user ID or username from session or currentUser state
     const creatorId = currentUser.id || currentUser.pk || currentUser.username || currentUser.email;
-
     const finalStatus = getDynamicStatus(startDate, endDate);
 
     const payload = {
-      title: projectName,        // Satisfies Django backend 'title' requirement
-      name: projectName,         // Retained for compatibility if needed
+      title: projectName,
+      name: projectName,
       description: description,
       start_date: startDate || null,
       end_date: endDate || null,
       status: finalStatus,
       assigned_users: assignedUsers,
       userPermissions: initialUserPermissions,
-      created_by: creatorId      // Satisfies Django backend foreign key/required field
+      created_by: creatorId
     };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
       const csrftoken = getCookie('csrftoken');
@@ -138,86 +157,125 @@ export default function CreateProject({ onBack }) {
         },
         credentials: 'include',
         body: JSON.stringify(payload),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
+      const responseText = await response.text();
+      let resData = {};
+      try {
+        resData = responseText ? JSON.parse(responseText) : {};
+      } catch (parseErr) {
+        resData = { raw: responseText };
+      }
+
       if (response.ok) {
-        onBack();
+        setSuccessMessage('Project created successfully!');
+        sessionStorage.setItem('activeTab', 'all');
+        sessionStorage.setItem('projectReturnTab', 'all');
+
+        setTimeout(() => {
+          if (typeof onBack === 'function') {
+            onBack('all');
+          } else {
+            window.location.reload();
+          }
+        }, 1200);
       } else {
-        const errData = await response.json();
-        alert('Failed to create project in database: ' + JSON.stringify(errData));
+        alert('Failed to create project in database: ' + (resData.detail || JSON.stringify(resData)));
+        setSaving(false);
       }
     } catch (err) {
-      console.error('Network error during project creation:', err);
-      alert('Network error during project creation. Please make sure your Django backend is running.');
+      clearTimeout(timeoutId);
+      console.error('Error during project creation:', err);
+      
+      if (err.name === 'AbortError') {
+        alert('Request timed out. Your Django backend took too long to respond.');
+      } else {
+        alert('Network error or server crash. Please check your Django backend terminal/console for errors.');
+      }
+      setSaving(false);
     }
   };
 
   return (
-    <div className="dash-panel" style={{ background: '#fff', padding: '24px', borderRadius: '8px', maxWidth: '600px', margin: '0 auto' }}>
+    <div className="dash-panel create-project-panel">
+      {successMessage && (
+        <div className="success-toast">
+          <span>✓</span> {successMessage}
+        </div>
+      )}
+
       <h3>Create New Project</h3>
-      <form onSubmit={handleCreate} style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form onSubmit={handleCreate} className="create-project-form">
         <div>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>Project Name</label>
+          <label className="form-label-bold">Project Name</label>
           <input 
             type="text" 
             value={projectName} 
             onChange={(e) => setProjectName(e.target.value)} 
             required
-            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+            disabled={Boolean(successMessage)}
+            className="form-input-custom"
           />
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>Description</label>
+          <label className="form-label-bold">Description</label>
           <textarea 
             value={description} 
             onChange={(e) => setDescription(e.target.value)} 
             rows={3}
-            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+            disabled={Boolean(successMessage)}
+            className="form-textarea-custom"
           />
         </div>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>Start Date</label>
+        <div className="date-fields-wrapper">
+          <div className="date-field-item">
+            <label className="form-label-bold">Start Date</label>
             <input 
               type="date" 
               value={startDate} 
               onChange={(e) => setStartDate(e.target.value)} 
-              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              disabled={Boolean(successMessage)}
+              className="form-input-custom"
             />
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>End Date</label>
+          <div className="date-field-item">
+            <label className="form-label-bold">End Date</label>
             <input 
               type="date" 
               value={endDate} 
               onChange={(e) => setEndDate(e.target.value)} 
-              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              disabled={Boolean(successMessage)}
+              className="form-input-custom"
             />
           </div>
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>Status (Auto-calculated)</label>
+          <label className="form-label-bold">Status (Auto-calculated)</label>
           <input 
             type="text" 
             disabled
             value={projectStatus} 
-            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontWeight: '500' }}
+            className="status-input-custom"
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}>Assign Users from Database</label>
-          <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+          <label className="form-label-bold">Assign Users from Database</label>
+          <div className="users-checkbox-box">
             {allSystemUsers.length > 0 ? (
               allSystemUsers.map(u => {
                 const uname = u.username || u.email;
                 const isChecked = assignedUsers.includes(uname);
                 const userInfo = getUserDisplayInfo(uname);
                 return (
-                  <label key={uname} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', cursor: 'pointer' }}>
+                  <label key={uname} className="users-checkbox-label">
                     <input
                       type="checkbox"
                       checked={isChecked}
+                      disabled={Boolean(successMessage)}
                       onChange={(e) => {
                         let updated = [...assignedUsers];
                         if (e.target.checked) {
@@ -233,14 +291,28 @@ export default function CreateProject({ onBack }) {
                 );
               })
             ) : (
-              <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>No users found in database API.</p>
+              <p className="no-users-text">No users found in database API.</p>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-          <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Create Project</button>
-          <button type="button" onClick={onBack} style={{ background: '#cbd5e1', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+        <div className="form-buttons-row">
+          <button 
+            type="submit" 
+            disabled={saving || Boolean(successMessage)}
+            className="btn-create-custom"
+            style={{ cursor: (saving || successMessage) ? 'not-allowed' : 'pointer', opacity: (saving || successMessage) ? 0.7 : 1 }}
+          >
+            {saving ? 'Creating Project...' : successMessage ? 'Created!' : 'Create Project'}
+          </button>
+          <button 
+            type="button" 
+            onClick={onBack} 
+            disabled={saving || Boolean(successMessage)}
+            className="btn-cancel-custom"
+          >
+            Cancel
+          </button>
         </div>
       </form>
     </div>

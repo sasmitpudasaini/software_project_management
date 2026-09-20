@@ -35,6 +35,14 @@ export default function UserManagement() {
         const regularUsers = userList.filter(
           (u) => !u.is_superuser && !u.is_staff && u.role !== 'super_admin' && u.role !== 'Admin' && u.role !== 'SuperAdmin'
         );
+
+        // Sort regular users by date_joined descending so the latest created user is displayed on top
+        regularUsers.sort((a, b) => {
+          const dateA = a.date_joined ? new Date(a.date_joined) : new Date(0);
+          const dateB = b.date_joined ? new Date(b.date_joined) : new Date(0);
+          return dateB - dateA;
+        });
+
         setUsers(regularUsers);
       })
       .catch((err) => console.error('Error fetching users from database:', err));

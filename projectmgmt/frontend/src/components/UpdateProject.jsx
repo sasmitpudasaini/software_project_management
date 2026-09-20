@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
+import './curd.css';
 
 function getCookie(name) {
   let cookieValue = null;
@@ -180,7 +181,7 @@ export default function UpdateProject({ isOpen, onClose, onSuccess, project, use
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }} className="form-group">
+          <div className="grid-two-cols form-group">
             <div>
               <label className="form-label">Start Date</label>
               <input
@@ -228,14 +229,14 @@ export default function UpdateProject({ isOpen, onClose, onSuccess, project, use
           {checkIsAdminOrSuperAdmin() && (
             <div className="form-group">
               <label className="form-label">Assigned Users</label>
-              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+              <div className="users-checkbox-box">
                 {users && users.length > 0 ? (
                   users.map(u => {
                     const uid = u.username || u.id?.toString() || u.email;
                     const isChecked = editForm.assignedUsers.includes(uid);
                     const userInfo = getUserDisplayInfo(uid);
                     return (
-                      <label key={uid} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', cursor: 'pointer' }}>
+                      <label key={uid} className="users-checkbox-label">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -254,7 +255,7 @@ export default function UpdateProject({ isOpen, onClose, onSuccess, project, use
                     );
                   })
                 ) : (
-                  <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>No users found in database.</p>
+                  <p className="no-users-text">No users found in database.</p>
                 )}
               </div>
             </div>

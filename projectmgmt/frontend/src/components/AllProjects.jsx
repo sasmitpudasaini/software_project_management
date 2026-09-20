@@ -67,7 +67,16 @@ export default function AllProjects({ onRead }) {
       const projRes = await fetch('http://localhost:8000/api/projects/', { credentials: 'include', headers });
       if (projRes.ok) {
         const data = await projRes.json();
-        setProjects(Array.isArray(data) ? data : (data.results || data.data || []));
+        const projArray = Array.isArray(data) ? data : (data.results || data.data || []);
+        
+        // Sort latest created projects on top using created_at
+        projArray.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.createdAt || 0);
+          const dateB = new Date(b.created_at || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+        setProjects(projArray);
       }
       const usersRes = await fetch('http://localhost:8000/api/users/', { credentials: 'include', headers });
       if (usersRes.ok) {

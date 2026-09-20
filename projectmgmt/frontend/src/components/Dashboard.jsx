@@ -125,7 +125,15 @@ export default function Dashboard() {
     <div className="dash-container">
       <div className="dash-sidebar">
         <div className="dash-sidebar-header">
-          <div className="dash-brand-title">
+          <div 
+            className="dash-brand-title" 
+            onClick={() => {
+              setActiveTab('home');
+              navigate('/dashboard');
+            }} 
+            style={{ cursor: 'pointer' }}
+            title="Go to Dashboard Home"
+          >
            <img src={logo} style={{ height: '50px', marginRight: '8px', verticalAlign: 'middle' }} alt="Company Logo" />
             <span style={{ color: '#235778' }}>DEVELOPERs </span>
           </div>

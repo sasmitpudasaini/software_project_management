@@ -75,7 +75,16 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
 
       if (projRes.ok) {
         const projData = await projRes.json();
-        setProjects(Array.isArray(projData) ? projData : (projData.results || projData.data || []));
+        const projArray = Array.isArray(projData) ? projData : (projData.results || projData.data || []);
+        
+        // Sort latest created projects on top using created_at
+        projArray.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.createdAt || 0);
+          const dateB = new Date(b.created_at || b.createdAt || 0);
+          return dateB - dateA;
+        });
+
+        setProjects(projArray);
       }
 
       if (userRes && userRes.ok) {

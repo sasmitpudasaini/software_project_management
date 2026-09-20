@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './usermanagement.css';
 import './projects.css';
+import './curd.css';
 
 function getCookie(name) {
   let cookieValue = null;
@@ -54,16 +55,16 @@ export default function DeleteProject({ isOpen, onClose, onSuccess, project }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-card" style={{ maxWidth: '400px' }}>
+      <div className="modal-card delete-modal-card">
         <div className="modal-header">
-          <h3 className="modal-title" style={{ color: '#dc2626' }}>Delete Project</h3>
+          <h3 className="modal-title delete-title-color">Delete Project</h3>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
-          <p style={{ color: '#334155', marginBottom: '15px' }}>
+          <p className="delete-text-msg">
             Are you sure you want to delete <strong>{projectName}</strong>? This action cannot be undone.
           </p>
-          <div className="modal-footer" style={{ marginTop: '20px' }}>
+          <div className="modal-footer delete-footer-margin">
             <button type="button" className="btn-secondary" disabled={deleting} onClick={onClose}>Cancel</button>
             <button 
               type="button" 
