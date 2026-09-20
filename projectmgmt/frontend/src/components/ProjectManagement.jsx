@@ -4,6 +4,7 @@ import './projects.css';
 import ReadProject from './ReadProject';
 import UpdateProject from './UpdateProject';
 import DeleteProject from './DeleteProject';
+import UsersTask from './UsersTask';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -34,6 +35,9 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
 
   const [isReadModalOpen, setIsReadModalOpen] = useState(false);
   const [projectToRead, setProjectToRead] = useState(null);
+
+  const [isUsersTaskModalOpen, setIsUsersTaskModalOpen] = useState(false);
+  const [projectToUsersTask, setProjectToUsersTask] = useState(null);
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [projectToAssign, setProjectToAssign] = useState(null);
@@ -77,7 +81,6 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
         const projData = await projRes.json();
         const projArray = Array.isArray(projData) ? projData : (projData.results || projData.data || []);
         
-        // Sort latest created projects on top using created_at
         projArray.sort((a, b) => {
           const dateA = new Date(a.created_at || a.createdAt || 0);
           const dateB = new Date(b.created_at || b.createdAt || 0);
@@ -174,6 +177,11 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
   const handleOpenEditModal = (p) => {
     setProjectToEdit(p);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenUsersTaskModal = (p) => {
+    setProjectToUsersTask(p);
+    setIsUsersTaskModalOpen(true);
   };
 
   const handleOpenAssignModal = (p) => {
@@ -347,6 +355,7 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
                       {canEditProject(p) && (
                         <button className="btn-action" onClick={() => handleOpenEditModal(p)}>Edit</button>
                       )}
+                      <button className="btn-action" onClick={() => handleOpenUsersTaskModal(p)}>User's Task</button>
                       {checkIsAdminOrSuperAdmin() && (
                         <button 
                           className="btn-primary btn-action-sm" 
@@ -402,6 +411,16 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
         onClose={() => setIsDeleteModalOpen(false)}
         onSuccess={fetchInitialData}
         project={projectToDelete}
+      />
+
+      <UsersTask
+        isOpen={isUsersTaskModalOpen}
+        onClose={() => {
+          setIsUsersTaskModalOpen(false);
+          setProjectToUsersTask(null);
+        }}
+        project={projectToUsersTask}
+        users={users}
       />
 
       {/* Assign Users Modal */}

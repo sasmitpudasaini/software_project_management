@@ -25,6 +25,12 @@ class Project(models.Model):
     
     # Stores the selected assigned users directly as a JSON list in the project database row
     assigned_users = models.JSONField(default=list, blank=True)
+    
+    # Stores the project title and a collection of tasks with description and date
+    user_tasks = models.JSONField(default=dict, blank=True)
+    
+    # New task_created_at column added safely
+    task_created_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title

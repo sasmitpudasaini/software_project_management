@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
 import ReadProject from './ReadProject';
-import UpdateProject from './UpdateProject';
-import UsersTask from './UsersTask';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -15,21 +13,20 @@ function getDynamicStatus(startDate, endDate) {
   return end < today ? 'Completed' : 'Ongoing';
 }
 
-export default function OngoingProjects({ onRead }) {
+export default function MyTasks({ onRead }) {
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [loading, setLoading] = useState(true);
 
   const [selectedProjectForRead, setSelectedProjectForRead] = useState(null);
   const [isReadModalOpen, setIsReadModalOpen] = useState(false);
 
-  const [selectedProjectForEdit, setSelectedProjectForEdit] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  const [selectedProjectForUsersTask, setSelectedProjectForUsersTask] = useState(null);
-  const [isUsersTaskModalOpen, setIsUsersTaskModalOpen] = useState(false);
+  const [selectedProjectForAddTask, setSelectedProjectForAddTask] = useState(null);
+  const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+  const [newTaskDescription, setNewTaskDescription] = useState('');
 
   const [currentUser, setCurrentUser] = useState({});
 
@@ -44,8 +41,9 @@ export default function OngoingProjects({ onRead }) {
       return { ...p, calculatedStatus: getDynamicStatus(startDate, endDate) };
     });
 
-    result = result.filter(p => p.calculatedStatus === 'Ongoing');
-
+    if (statusFilter !== 'All') {
+      result = result.filter(p => p.calculatedStatus === statusFilter);
+    }
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase();
       result = result.filter(p => {
@@ -55,7 +53,7 @@ export default function OngoingProjects({ onRead }) {
       });
     }
     setFilteredProjects(result);
-  }, [projects, searchQuery]);
+  }, [projects, searchQuery, statusFilter]);
 
   const fetchInitialData = async () => {
     try {
@@ -85,38 +83,10 @@ export default function OngoingProjects({ onRead }) {
         setUsers(Array.isArray(data) ? data : (data.results || data.data || []));
       }
     } catch (error) {
-      console.error('Error fetching ongoing projects:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const checkIsSuperAdmin = () => {
-    try {
-      if (!currentUser) return false;
-      const userRole = (currentUser?.role || currentUser?.userRole || currentUser?.user_type || '').toLowerCase();
-      const username = (currentUser?.username || currentUser?.email || '').toLowerCase();
-      return currentUser?.is_superuser === 1 || currentUser?.is_superuser === true || currentUser?.is_superuser === '1' || currentUser?.isSuperAdmin === true || currentUser?.isSuperuser === true || userRole.includes('super') || username === 'superadmin';
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const canEditProject = (p) => {
-    if (checkIsSuperAdmin()) return true;
-    if (currentUser?.can_update_project === true || currentUser?.can_update_project === 1 || currentUser?.can_update_project === '1') return true;
-    if (!p) return false;
-    const perms = p.userPermissions || p.user_permissions || p.permissions;
-    if (!perms || typeof perms !== 'object') return false;
-    const userKeys = [currentUser.username, currentUser.email, currentUser.id?.toString()].filter(Boolean);
-    for (const key of userKeys) {
-      const pVal = perms[key];
-      if (pVal) {
-        if (typeof pVal === 'object') { if (pVal.edit || pVal.update) return true; }
-        else if (pVal === true) { return true; }
-      }
-    }
-    return false;
   };
 
   const getAssignedUsersArray = (proj) => {
@@ -149,33 +119,63 @@ export default function OngoingProjects({ onRead }) {
     setIsReadModalOpen(true);
   };
 
-  const handleOpenEdit = (p) => {
-    setSelectedProjectForEdit(p);
-    setIsEditModalOpen(true);
+  const handleOpenAddTask = (p) => {
+    setSelectedProjectForAddTask(p);
+    setIsAddTaskModalOpen(true);
   };
 
-  const handleOpenUsersTask = (p) => {
-    setSelectedProjectForUsersTask(p);
-    setIsUsersTaskModalOpen(true);
+  const handleAddTaskSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedProjectForAddTask) return;
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const projId = selectedProjectForAddTask.id || selectedProjectForAddTask._id;
+      const res = await fetch(`http://localhost:8000/api/projects/${projId}/tasks/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ description: newTaskDescription, username: currentUser.username })
+      });
+      if (res.ok) {
+        setIsAddTaskModalOpen(false);
+        setNewTaskDescription('');
+        setSelectedProjectForAddTask(null);
+        fetchInitialData();
+      } else {
+        alert('Failed to add task.');
+      }
+    } catch (err) {
+      console.error('Error adding task:', err);
+      alert('Error adding task.');
+    }
   };
 
   return (
     <div className="dash-panel">
       <div className="projects-header">
         <div className="projects-header-info">
-          <h3 className="projects-title">Ongoing Projects</h3>
+          <h3 className="projects-title">My Tasks</h3>
           <p className="projects-description">
-            Overview of currently active database system projects and assigned teams.
+            Manage your assigned tasks and view project details.
           </p>
         </div>
         <div className="projects-controls">
           <input
             type="text"
             className="form-input project-search-input-wide"
-            placeholder="Search ongoing projects..."
+            placeholder="Search projects..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          <select
+            className="form-select project-filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="All">All Status</option>
+            <option value="Ongoing">Ongoing</option>
+            <option value="Completed">Completed</option>
+          </select>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ export default function OngoingProjects({ onRead }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="6" className="table-loading-cell">Loading ongoing projects...</td>
+                <td colSpan="6" className="table-loading-cell">Loading tasks and projects...</td>
               </tr>
             ) : filteredProjects.length > 0 ? (
               filteredProjects.map((p, index) => {
@@ -202,12 +202,13 @@ export default function OngoingProjects({ onRead }) {
                 const startDate = p.startDate || p.start_date || 'N/A';
                 const endDate = p.endDate || p.end_date || 'N/A';
                 const assignedList = getAssignedUsersArray(p);
+                const displayStatus = p.calculatedStatus || getDynamicStatus(startDate, endDate);
 
                 return (
                   <tr key={p.id || p._id || index}>
                     <td><strong>{projectName}</strong></td>
                     <td>
-                      <span className="badge badge-warning">Ongoing</span>
+                      <span className={`badge ${displayStatus === 'Completed' ? 'badge-success' : 'badge-warning'}`}>{displayStatus}</span>
                     </td>
                     <td className="assigned-users-cell">
                       {assignedList.length > 0 ? (
@@ -231,21 +232,25 @@ export default function OngoingProjects({ onRead }) {
                       <button 
                         className="btn-action" 
                         onClick={() => {
-                          sessionStorage.setItem('projectReturnTab', 'ongoing');
+                          sessionStorage.setItem('projectReturnTab', 'my-tasks');
                           handleOpenRead(p);
                         }}
                       >
                         View
                       </button>
-                      {canEditProject(p) && <button className="btn-action" onClick={() => handleOpenEdit(p)}>Edit</button>}
-                      <button className="btn-action" onClick={() => handleOpenUsersTask(p)}>User's Task</button>
+                      <button 
+                        className="btn-action" 
+                        onClick={() => handleOpenAddTask(p)}
+                      >
+                        Add task
+                      </button>
                     </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan="6" className="table-loading-cell">No ongoing projects found.</td>
+                <td colSpan="6" className="table-loading-cell">No projects found.</td>
               </tr>
             )}
           </tbody>
@@ -262,24 +267,43 @@ export default function OngoingProjects({ onRead }) {
         users={users}
       />
 
-      <UpdateProject
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSuccess={fetchInitialData}
-        project={selectedProjectForEdit}
-        users={users}
-        currentUser={currentUser}
-      />
-
-      <UsersTask
-        isOpen={isUsersTaskModalOpen}
-        onClose={() => {
-          setIsUsersTaskModalOpen(false);
-          setSelectedProjectForUsersTask(null);
-        }}
-        project={selectedProjectForUsersTask}
-        users={users}
-      />
+      {isAddTaskModalOpen && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '400px', maxWidth: '90%' }}>
+            <h3 style={{ marginBottom: '16px' }}>Add Task for {selectedProjectForAddTask?.name || selectedProjectForAddTask?.projectName || 'Project'}</h3>
+            <form onSubmit={handleAddTaskSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Task Description:</label>
+                <textarea 
+                  className="form-input" 
+                  rows="4" 
+                  value={newTaskDescription} 
+                  onChange={(e) => setNewTaskDescription(e.target.value)} 
+                  required
+                  placeholder="Enter task description..."
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button 
+                  type="button" 
+                  className="btn-action" 
+                  onClick={() => { setIsAddTaskModalOpen(false); setNewTaskDescription(''); setSelectedProjectForAddTask(null); }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-action" 
+                  style={{ background: '#235778', color: '#fff' }}
+                >
+                  Save Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

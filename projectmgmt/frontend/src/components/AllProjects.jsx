@@ -3,6 +3,7 @@ import './usermanagement.css';
 import './projects.css';
 import ReadProject from './ReadProject';
 import UpdateProject from './UpdateProject';
+import UsersTask from './UsersTask';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -27,6 +28,9 @@ export default function AllProjects({ onRead }) {
 
   const [selectedProjectForEdit, setSelectedProjectForEdit] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const [selectedProjectForUsersTask, setSelectedProjectForUsersTask] = useState(null);
+  const [isUsersTaskModalOpen, setIsUsersTaskModalOpen] = useState(false);
 
   const [currentUser, setCurrentUser] = useState({});
 
@@ -69,7 +73,6 @@ export default function AllProjects({ onRead }) {
         const data = await projRes.json();
         const projArray = Array.isArray(data) ? data : (data.results || data.data || []);
         
-        // Sort latest created projects on top using created_at
         projArray.sort((a, b) => {
           const dateA = new Date(a.created_at || a.createdAt || 0);
           const dateB = new Date(b.created_at || b.createdAt || 0);
@@ -151,6 +154,11 @@ export default function AllProjects({ onRead }) {
   const handleOpenEdit = (p) => {
     setSelectedProjectForEdit(p);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenUsersTask = (p) => {
+    setSelectedProjectForUsersTask(p);
+    setIsUsersTaskModalOpen(true);
   };
 
   return (
@@ -242,6 +250,7 @@ export default function AllProjects({ onRead }) {
                         View
                       </button>
                       {canEditProject(p) && <button className="btn-action" onClick={() => handleOpenEdit(p)}>Edit</button>}
+                      <button className="btn-action" onClick={() => handleOpenUsersTask(p)}>User's Task</button>
                     </td>
                   </tr>
                 );
@@ -272,6 +281,16 @@ export default function AllProjects({ onRead }) {
         project={selectedProjectForEdit}
         users={users}
         currentUser={currentUser}
+      />
+
+      <UsersTask
+        isOpen={isUsersTaskModalOpen}
+        onClose={() => {
+          setIsUsersTaskModalOpen(false);
+          setSelectedProjectForUsersTask(null);
+        }}
+        project={selectedProjectForUsersTask}
+        users={users}
       />
     </div>
   );

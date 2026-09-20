@@ -46,7 +46,6 @@ def login_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user_view(request):
-    # Fetch fresh data straight from the database
     user = User.objects.get(pk=request.user.pk)
     return Response(get_user_data(user), status=status.HTTP_200_OK)
 

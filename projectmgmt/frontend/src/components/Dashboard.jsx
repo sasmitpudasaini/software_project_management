@@ -6,6 +6,7 @@ import ReadProject from './ReadProject';
 import DeleteProject from './DeleteProject';
 import UserManagement from './UserManagement';
 import UserProfile from './UserProfile';
+import MyTasks from './MyTasks';
 import './dashboard.css';
 import logo from '../assets/logo.png';
 
@@ -250,6 +251,17 @@ export default function Dashboard() {
               </button>
             </>
           )}
+
+          <div className="dash-menu-category">My tasks</div>
+          <button 
+            className={`dash-nav-item ${activeTab === 'my-tasks' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('my-tasks');
+              navigate('/dashboard');
+            }}
+          >
+            My Tasks
+          </button>
         </div>
 
         <div className="dash-sidebar-footer">
@@ -295,6 +307,7 @@ export default function Dashboard() {
               {activeTab === 'delete-project' && <DeleteProject project={selectedProjectForDelete} onBack={() => navigate('/dashboard/projects')} />}
               {activeTab === 'user-management' && isSuperAdmin && <UserManagement />}
               {activeTab === 'user-profile' && <UserProfile user={user} onBack={() => { setActiveTab('home'); navigate('/dashboard'); }} onLogout={handleLogout} />}
+              {activeTab === 'my-tasks' && <MyTasks />}
             </>
           )}
         </div>
