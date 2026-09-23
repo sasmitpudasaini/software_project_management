@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
 import ReadProject from './ReadProject';
+import AddTasks from './AddTasks';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -11,6 +12,22 @@ function getDynamicStatus(startDate, endDate) {
   if (isNaN(end.getTime())) return 'Ongoing';
   end.setHours(0, 0, 0, 0);
   return end < today ? 'Completed' : 'Ongoing';
+}
+
+// Fixed helper function to extract Django CSRF token from cookies
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim(); // Fixed: using cookies[i] instead of cookies array
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
 }
 
 export default function MyTasks({ onRead }) {
@@ -26,7 +43,6 @@ export default function MyTasks({ onRead }) {
 
   const [selectedProjectForAddTask, setSelectedProjectForAddTask] = useState(null);
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
-  const [newTaskDescription, setNewTaskDescription] = useState('');
 
   const [currentUser, setCurrentUser] = useState({});
 
@@ -124,29 +140,36 @@ export default function MyTasks({ onRead }) {
     setIsAddTaskModalOpen(true);
   };
 
-  const handleAddTaskSubmit = async (e) => {
-    e.preventDefault();
+  const handleSaveTasks = async (tasks) => {
     if (!selectedProjectForAddTask) return;
     try {
-      const headers = { 'Content-Type': 'application/json' };
+      const csrftoken = getCookie('csrftoken');
+      const headers = { 
+        'Content-Type': 'application/json',
+        ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+      };
+      
       const projId = selectedProjectForAddTask.id || selectedProjectForAddTask._id;
-      const res = await fetch(`http://localhost:8000/api/projects/${projId}/tasks/`, {
-        method: 'POST',
+      
+      const res = await fetch(`http://localhost:8000/api/projects/${projId}/`, {
+        method: 'PATCH',
         credentials: 'include',
         headers,
-        body: JSON.stringify({ description: newTaskDescription, username: currentUser.username })
+        body: JSON.stringify({ user_tasks: tasks })
       });
+
       if (res.ok) {
         setIsAddTaskModalOpen(false);
-        setNewTaskDescription('');
         setSelectedProjectForAddTask(null);
         fetchInitialData();
       } else {
-        alert('Failed to add task.');
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Failed to save tasks to user_tasks column:', errorData);
+        alert('Failed to save tasks to database. Check console for details.');
       }
     } catch (err) {
-      console.error('Error adding task:', err);
-      alert('Error adding task.');
+      console.error('Error saving tasks:', err);
+      alert('Error saving tasks.');
     }
   };
 
@@ -269,38 +292,15 @@ export default function MyTasks({ onRead }) {
 
       {isAddTaskModalOpen && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '400px', maxWidth: '90%' }}>
-            <h3 style={{ marginBottom: '16px' }}>Add Task for {selectedProjectForAddTask?.name || selectedProjectForAddTask?.projectName || 'Project'}</h3>
-            <form onSubmit={handleAddTaskSubmit}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Task Description:</label>
-                <textarea 
-                  className="form-input" 
-                  rows="4" 
-                  value={newTaskDescription} 
-                  onChange={(e) => setNewTaskDescription(e.target.value)} 
-                  required
-                  placeholder="Enter task description..."
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <button 
-                  type="button" 
-                  className="btn-action" 
-                  onClick={() => { setIsAddTaskModalOpen(false); setNewTaskDescription(''); setSelectedProjectForAddTask(null); }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-action" 
-                  style={{ background: '#235778', color: '#fff' }}
-                >
-                  Save Task
-                </button>
-              </div>
-            </form>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: '8px', width: '650px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <AddTasks 
+              initialTasks={selectedProjectForAddTask?.user_tasks || selectedProjectForAddTask?.tasks || []}
+              onSave={handleSaveTasks}
+              onBack={() => {
+                setIsAddTaskModalOpen(false);
+                setSelectedProjectForAddTask(null);
+              }}
+            />
           </div>
         </div>
       )}

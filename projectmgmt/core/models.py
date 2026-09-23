@@ -29,8 +29,8 @@ class Project(models.Model):
     # Stores the project title and a collection of tasks with description and date
     user_tasks = models.JSONField(default=dict, blank=True)
     
-    # New task_created_at column added safely
-    task_created_at = models.DateTimeField(null=True, blank=True)
+   # ADD this (linking to your User model or storing as a string):
+    task_created_by = models.CharField(max_length=150, blank=True, null=True)
 
     def __str__(self):
         return self.title
