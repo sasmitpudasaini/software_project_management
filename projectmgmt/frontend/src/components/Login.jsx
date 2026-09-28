@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './auth.css';
 import logo from '../assets/logo.png';
+
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -11,6 +12,13 @@ export default function Login() {
     e.preventDefault();
 
     try {
+      // 1. Clear out any previous user data/cache from local storage to prevent old names from lingering
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('user');
+      localStorage.removeItem('loggedInUser');
+      localStorage.removeItem('auth_token');
+
+      // 2. Request authentication from your backend database
       const response = await fetch('http://localhost:8000/api/login/', {
         method: 'POST',
         headers: {
@@ -22,7 +30,13 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
+        // Extract the user data payload safely
+        const userData = data.user || data.data || data;
+
+        // 3. Save the current user to localStorage under both keys so components sync seamlessly
+        localStorage.setItem('currentUser', JSON.stringify(userData));
         localStorage.setItem('user', JSON.stringify(data));
+
         alert('Login successful!');
         navigate('/dashboard');
       } else {
@@ -38,8 +52,10 @@ export default function Login() {
   return (
     <div className="auth-page-bg">
       <div className="auth-card">
-        <div className="dash-brand-title"><img src= {logo} style={{ height: '50px', marginRight: '8px', verticalAlign: 'middle' }} alt="Company Logo" />
-                    <span style={{ color: '#235778' }}>DEVELOPERs </span></div>
+        <div className="dash-brand-title">
+          <img src={logo} style={{ height: '50px', marginRight: '8px', verticalAlign: 'middle' }} alt="Company Logo" />
+          <span style={{ color: '#235778' }}>DEVELOPERs </span>
+        </div>
         <h2 className="auth-title">Project Management Sign In</h2>
 
         <form onSubmit={handleLogin} className="auth-form">
