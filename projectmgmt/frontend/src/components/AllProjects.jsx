@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
-import ReadProject from './ReadProject';
-import UpdateProject from './UpdateProject';
-import UsersTask from './UsersTask';
+import Actions from './Actions'; // Import the full-page Actions hub component
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -15,7 +13,7 @@ function getDynamicStatus(startDate, endDate) {
   return end < today ? 'Completed' : 'Ongoing';
 }
 
-export default function AllProjects({ onRead }) {
+export default function AllProjects() {
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -23,14 +21,9 @@ export default function AllProjects({ onRead }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [loading, setLoading] = useState(true);
 
-  const [selectedProjectForRead, setSelectedProjectForRead] = useState(null);
-  const [isReadModalOpen, setIsReadModalOpen] = useState(false);
-
-  const [selectedProjectForEdit, setSelectedProjectForEdit] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  const [selectedProjectForUsersTask, setSelectedProjectForUsersTask] = useState(null);
-  const [isUsersTaskModalOpen, setIsUsersTaskModalOpen] = useState(false);
+  // Full-page View state ('list' or 'actions')
+  const [currentView, setCurrentView] = useState('list');
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const [currentUser, setCurrentUser] = useState({});
 
@@ -93,34 +86,6 @@ export default function AllProjects({ onRead }) {
     }
   };
 
-  const checkIsSuperAdmin = () => {
-    try {
-      if (!currentUser) return false;
-      const userRole = (currentUser?.role || currentUser?.userRole || currentUser?.user_type || '').toLowerCase();
-      const username = (currentUser?.username || currentUser?.email || '').toLowerCase();
-      return currentUser?.is_superuser === 1 || currentUser?.is_superuser === true || currentUser?.is_superuser === '1' || currentUser?.isSuperAdmin === true || currentUser?.isSuperuser === true || userRole.includes('super') || username === 'superadmin';
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const canEditProject = (p) => {
-    if (checkIsSuperAdmin()) return true;
-    if (currentUser?.can_update_project === true || currentUser?.can_update_project === 1 || currentUser?.can_update_project === '1') return true;
-    if (!p) return false;
-    const perms = p.userPermissions || p.user_permissions || p.permissions;
-    if (!perms || typeof perms !== 'object') return false;
-    const userKeys = [currentUser.username, currentUser.email, currentUser.id?.toString()].filter(Boolean);
-    for (const key of userKeys) {
-      const pVal = perms[key];
-      if (pVal) {
-        if (typeof pVal === 'object') { if (pVal.edit || pVal.update) return true; }
-        else if (pVal === true) { return true; }
-      }
-    }
-    return false;
-  };
-
   const getAssignedUsersArray = (proj) => {
     if (!proj) return [];
     const raw = proj.assigned_users || proj.assignedUsers || proj.users || proj.members || proj.team;
@@ -146,20 +111,49 @@ export default function AllProjects({ onRead }) {
     return { name, role: formattedRole, email: sysUser?.email || identifier };
   };
 
-  const handleOpenRead = (p) => {
-    setSelectedProjectForRead(p);
-    setIsReadModalOpen(true);
+  const handleOpenActions = (p) => {
+    setSelectedProject(p);
+    setCurrentView('actions');
   };
 
-  const handleOpenEdit = (p) => {
-    setSelectedProjectForEdit(p);
-    setIsEditModalOpen(true);
-  };
-
-  const handleOpenUsersTask = (p) => {
-    setSelectedProjectForUsersTask(p);
-    setIsUsersTaskModalOpen(true);
-  };
+  // If view is 'actions', render the full-page Actions component
+  if (currentView === 'actions') {
+    return (
+      <Actions
+        project={selectedProject}
+        users={users}
+        currentUser={currentUser}
+        onProjectUpdated={fetchInitialData}
+        onBackToProjects={() => {
+          setCurrentView('list');
+          setSelectedProject(null);
+          fetchInitialData();
+        }}
+        onSaveTasks={async (updatedTasks) => {
+          if (!selectedProject) return;
+          const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
+          const csrftoken = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1];
+          const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify({ user_tasks: updatedTasks })
+          });
+          if (response.ok) {
+            // Update selected project state locally as well
+            const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
+            setSelectedProject(updatedProj);
+            fetchInitialData();
+          } else {
+            throw new Error('Failed to save tasks');
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <div className="dash-panel">
@@ -167,7 +161,7 @@ export default function AllProjects({ onRead }) {
         <div className="projects-header-info">
           <h3 className="projects-title">All Projects</h3>
           <p className="projects-description">
-            Comprehensive overview of all database system projects and assigned users.
+            Comprehensive overview of all database system projects and assigned users[cite: 3]. Click any row to view actions.
           </p>
         </div>
         <div className="projects-controls">
@@ -216,7 +210,12 @@ export default function AllProjects({ onRead }) {
                 const displayStatus = p.calculatedStatus || getDynamicStatus(startDate, endDate);
 
                 return (
-                  <tr key={p.id || p._id || index}>
+                  <tr 
+                    key={p.id || p._id || index}
+                    onClick={() => handleOpenActions(p)}
+                    style={{ cursor: 'pointer', transition: 'background-color 0.15s ease' }}
+                    title="Click anywhere to open project actions"
+                  >
                     <td><strong>{projectName}</strong></td>
                     <td>
                       <span className={`badge ${displayStatus === 'Completed' ? 'badge-success' : 'badge-warning'}`}>{displayStatus}</span>
@@ -239,18 +238,16 @@ export default function AllProjects({ onRead }) {
                     </td>
                     <td className="date-cell">{startDate}</td>
                     <td className="date-cell">{endDate}</td>
-                    <td className="table-actions">
+                    <td className="table-actions" onClick={(e) => e.stopPropagation()}>
                       <button 
                         className="btn-action" 
-                        onClick={() => {
-                          sessionStorage.setItem('projectReturnTab', 'all');
-                          handleOpenRead(p);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenActions(p);
                         }}
                       >
-                        View
+                        Open Actions
                       </button>
-                      {canEditProject(p) && <button className="btn-action" onClick={() => handleOpenEdit(p)}>Edit</button>}
-                      <button className="btn-action" onClick={() => handleOpenUsersTask(p)}>User's Task</button>
                     </td>
                   </tr>
                 );
@@ -263,35 +260,6 @@ export default function AllProjects({ onRead }) {
           </tbody>
         </table>
       </div>
-
-      <ReadProject
-        isOpen={isReadModalOpen}
-        onClose={() => {
-          setIsReadModalOpen(false);
-          setSelectedProjectForRead(null);
-        }}
-        project={selectedProjectForRead}
-        users={users}
-      />
-
-      <UpdateProject
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSuccess={fetchInitialData}
-        project={selectedProjectForEdit}
-        users={users}
-        currentUser={currentUser}
-      />
-
-      <UsersTask
-        isOpen={isUsersTaskModalOpen}
-        onClose={() => {
-          setIsUsersTaskModalOpen(false);
-          setSelectedProjectForUsersTask(null);
-        }}
-        project={selectedProjectForUsersTask}
-        users={users}
-      />
     </div>
   );
 }

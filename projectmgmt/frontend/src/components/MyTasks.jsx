@@ -383,7 +383,7 @@ export default function MyTasks({ currentUser: propCurrentUser }) {
                     <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                       No tasks found matching the selected creator filter.
                     </div>
-                  );
+                  )
                 }
               })()}
             </div>

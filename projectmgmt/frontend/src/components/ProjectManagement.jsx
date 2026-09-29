@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
-import ReadProject from './ReadProject';
-import UpdateProject from './UpdateProject';
-import DeleteProject from './DeleteProject';
-import UsersTask from './UsersTask';
+import Actions from './Actions'; // Import the full-page Actions hub component
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -30,21 +27,9 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [projectToEdit, setProjectToEdit] = useState(null);
-
-  const [isReadModalOpen, setIsReadModalOpen] = useState(false);
-  const [projectToRead, setProjectToRead] = useState(null);
-
-  const [isUsersTaskModalOpen, setIsUsersTaskModalOpen] = useState(false);
-  const [projectToUsersTask, setProjectToUsersTask] = useState(null);
-
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [projectToAssign, setProjectToAssign] = useState(null);
-  const [assignFormUsers, setAssignFormUsers] = useState([]);
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState(null);
+  // Full-page View state ('list' or 'actions')
+  const [currentView, setCurrentView] = useState('list');
+  const [selectedProject, setSelectedProject] = useState(null);
 
   const getCookie = (name) => {
     let cookieValue = null;
@@ -81,6 +66,7 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
         const projData = await projRes.json();
         const projArray = Array.isArray(projData) ? projData : (projData.results || projData.data || []);
         
+        // Sort latest created projects on top using created_at
         projArray.sort((a, b) => {
           const dateA = new Date(a.created_at || a.createdAt || 0);
           const dateB = new Date(b.created_at || b.createdAt || 0);
@@ -132,123 +118,48 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
     return { name: uname, role: '' };
   };
 
-  const checkIsSuperAdmin = () => {
-    try {
-      if (!currentUser) return false;
-      const userRole = (currentUser?.role || currentUser?.userRole || currentUser?.user_type || '').toLowerCase();
-      const username = (currentUser?.username || currentUser?.email || '').toLowerCase();
-      return currentUser?.is_superuser === true || 
-             currentUser?.is_superuser === 1 || 
-             currentUser?.is_superuser === '1' || 
-             currentUser?.isSuperAdmin === true || 
-             currentUser?.isSuperuser === true || 
-             userRole.includes('super') || 
-             username === 'superadmin';
-    } catch (e) {
-      return false;
-    }
+  const handleOpenActions = (p) => {
+    setSelectedProject(p);
+    setCurrentView('actions');
   };
 
-  const checkIsAdminOrSuperAdmin = () => {
-    try {
-      if (!currentUser) return false;
-      if (checkIsSuperAdmin()) return true;
-      const userRole = (currentUser?.role || currentUser?.userRole || currentUser?.user_type || currentUser?.group || '').toLowerCase();
-      const username = (currentUser?.username || currentUser?.email || '').toLowerCase();
-      return userRole.includes('admin') || currentUser?.isAdmin === true || currentUser?.is_staff === true || currentUser?.is_admin === true || username === 'admin' || (Array.isArray(currentUser?.groups) && currentUser.groups.some(g => typeof g === 'string' && g.toLowerCase().includes('admin')));
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const canEditProject = (p) => {
-    if (checkIsAdminOrSuperAdmin()) return true;
-    const assigned = getAssignedUsersArray(p);
-    const currentName = currentUser?.username || currentUser?.email;
-    const currentId = currentUser?.id?.toString();
-    return assigned.includes(currentName) || (currentId && assigned.includes(currentId));
-  };
-
-  const handleOpenReadModal = (p) => {
-    setProjectToRead(p);
-    setIsReadModalOpen(true);
-  };
-
-  const handleOpenEditModal = (p) => {
-    setProjectToEdit(p);
-    setIsEditModalOpen(true);
-  };
-
-  const handleOpenUsersTaskModal = (p) => {
-    setProjectToUsersTask(p);
-    setIsUsersTaskModalOpen(true);
-  };
-
-  const handleOpenAssignModal = (p) => {
-    setProjectToAssign(p);
-    setAssignFormUsers(getAssignedUsersArray(p));
-    setIsAssignModalOpen(true);
-  };
-
-  const handleSaveAssign = async (e) => {
-    e.preventDefault();
-    if (!projectToAssign) return;
-    try {
-      const projectId = projectToAssign.id || projectToAssign._id || projectToAssign.pk;
-      if (!projectId) {
-        alert('Error: Project ID is missing.');
-        return;
-      }
-
-      const projName = projectToAssign.name || projectToAssign.projectName || projectToAssign.title || projectToAssign.project_name || projectToAssign.projectname || '';
-      const csrftoken = getCookie('csrftoken');
-      const formattedAssigned = assignFormUsers;
-      const startVal = projectToAssign.startDate || projectToAssign.start_date || projectToAssign.start || '';
-      const endVal = projectToAssign.endDate || projectToAssign.end_date || projectToAssign.end || '';
-      const calculatedStatus = getDynamicStatus(startVal, endVal);
-
-      const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: projName,
-          projectName: projName,
-          title: projName,
-          project_name: projName,
-          description: projectToAssign.description || projectToAssign.desc || projectToAssign.details || '',
-          start_date: startVal || null,
-          end_date: endVal || null,
-          startDate: startVal || null,
-          endDate: endVal || null,
-          status: calculatedStatus,
-          assigned_users: formattedAssigned,
-          assignedUsers: formattedAssigned,
-          userPermissions: projectToAssign.userPermissions || projectToAssign.user_permissions || projectToAssign.permissions || {}
-        })
-      });
-
-      if (response.ok) {
-        setIsAssignModalOpen(false);
-        setProjectToAssign(null);
-        fetchInitialData();
-      } else {
-        const errorData = await response.json();
-        alert('Failed to update user assignments: ' + JSON.stringify(errorData));
-      }
-    } catch (error) {
-      console.error('Error updating assignments:', error);
-      alert('Network error while updating assignments.');
-    }
-  };
-
-  const handleOpenDeleteModal = (p) => {
-    setProjectToDelete(p);
-    setIsDeleteModalOpen(true);
-  };
+  // If view is 'actions', render the full-page Actions component
+  if (currentView === 'actions') {
+    return (
+      <Actions
+        project={selectedProject}
+        users={users}
+        currentUser={currentUser}
+        onProjectUpdated={fetchInitialData}
+        onBackToProjects={() => {
+          setCurrentView('list');
+          setSelectedProject(null);
+          fetchInitialData();
+        }}
+        onSaveTasks={async (updatedTasks) => {
+          if (!selectedProject) return;
+          const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
+          const csrftoken = getCookie('csrftoken');
+          const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify({ user_tasks: updatedTasks })
+          });
+          if (response.ok) {
+            const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
+            setSelectedProject(updatedProj);
+            fetchInitialData();
+          } else {
+            throw new Error('Failed to save tasks');
+          }
+        }}
+      />
+    );
+  }
 
   const filteredProjects = projects.map(p => {
     const startDate = p.startDate || p.start_date || p.start || '';
@@ -271,7 +182,7 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
         <div className="projects-header-info">
           <h3 className="projects-title">Project Management</h3>
           <p className="projects-description">
-            Comprehensive overview and management of all database system projects and team assignments.
+            Comprehensive overview and management of all database system projects and team assignments. Click any row to view actions.
           </p>
         </div>
         <div className="projects-controls-simple">
@@ -322,7 +233,12 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
                 const assignedList = getAssignedUsersArray(p);
 
                 return (
-                  <tr key={p.id || p._id || p.pk || index}>
+                  <tr 
+                    key={p.id || p._id || p.pk || index}
+                    onClick={() => handleOpenActions(p)}
+                    style={{ cursor: 'pointer', transition: 'background-color 0.15s ease' }}
+                    title="Click anywhere to open project actions"
+                  >
                     <td><strong>{projectName}</strong></td>
                     <td>
                       <span className={`badge ${statusValue === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
@@ -350,28 +266,16 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
                     </td>
                     <td className="date-cell">{startDate}</td>
                     <td className="date-cell">{endDate}</td>
-                    <td className="table-actions">
-                      <button className="btn-action" onClick={() => handleOpenReadModal(p)}>View</button>
-                      {canEditProject(p) && (
-                        <button className="btn-action" onClick={() => handleOpenEditModal(p)}>Edit</button>
-                      )}
-                      <button className="btn-action" onClick={() => handleOpenUsersTaskModal(p)}>User's Task</button>
-                      {checkIsAdminOrSuperAdmin() && (
-                        <button 
-                          className="btn-primary btn-action-sm" 
-                          onClick={() => handleOpenAssignModal(p)}
-                        >
-                          Assign
-                        </button>
-                      )}
-                      {checkIsAdminOrSuperAdmin() && (
-                        <button 
-                          className="btn-danger btn-action-sm" 
-                          onClick={() => handleOpenDeleteModal(p)}
-                        >
-                          Delete
-                        </button>
-                      )}
+                    <td className="table-actions" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        className="btn-action" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenActions(p);
+                        }}
+                      >
+                        Open Actions
+                      </button>
                     </td>
                   </tr>
                 );
@@ -386,92 +290,6 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
           </tbody>
         </table>
       </div>
-
-      <ReadProject
-        isOpen={isReadModalOpen}
-        onClose={() => {
-          setIsReadModalOpen(false);
-          setProjectToRead(null);
-        }}
-        project={projectToRead}
-        users={users}
-      />
-
-      <UpdateProject
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSuccess={fetchInitialData}
-        project={projectToEdit}
-        users={users}
-        currentUser={currentUser}
-      />
-
-      <DeleteProject
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onSuccess={fetchInitialData}
-        project={projectToDelete}
-      />
-
-      <UsersTask
-        isOpen={isUsersTaskModalOpen}
-        onClose={() => {
-          setIsUsersTaskModalOpen(false);
-          setProjectToUsersTask(null);
-        }}
-        project={projectToUsersTask}
-        users={users}
-      />
-
-      {/* Assign Users Modal */}
-      {isAssignModalOpen && projectToAssign && (
-        <div className="modal-backdrop">
-          <div className="modal-card assign-modal-card">
-            <div className="modal-header">
-              <h3 className="modal-title">Assign Users to {projectToAssign.name || projectToAssign.projectName || projectToAssign.title || projectToAssign.project_name || 'Project'}</h3>
-              <button className="modal-close-btn" onClick={() => setIsAssignModalOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleSaveAssign} className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Select Team Members</label>
-                <div className="assign-users-container">
-                  {users.length > 0 ? (
-                    users.map(u => {
-                      const uid = u.username || u.id?.toString() || u.email;
-                      const isChecked = assignFormUsers.includes(uid);
-                      const userInfo = getUserDisplayInfo(uid);
-                      return (
-                        <label key={uid} className="assign-user-label">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              let updated = [...assignFormUsers];
-                              if (e.target.checked) {
-                                if (!updated.includes(uid)) updated.push(uid);
-                              } else {
-                                updated = updated.filter(item => item !== uid);
-                              }
-                              setAssignFormUsers(updated);
-                            }}
-                          />
-                          <span><strong>{userInfo.name}</strong> {userInfo.role ? `(${userInfo.role})` : ''}</span>
-                        </label>
-                      );
-                    })
-                  ) : (
-                    <p className="modal-empty-text">No users found in database.</p>
-                  )}
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsAssignModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Assignments</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
