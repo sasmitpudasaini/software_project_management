@@ -31,17 +31,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        email = data.get('email')
+        identifier = data.get('username') or data.get('email')
         password = data.get('password')
 
-        try:
-            user_obj = User.objects.get(email=email)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("Invalid email or password.")
+        if not identifier or not password:
+            raise serializers.ValidationError("Must include username/email and password.")
+
+        user_obj = None
+        if '@' in identifier:
+            try:
+                user_obj = User.objects.get(email=identifier)
+            except User.DoesNotExist:
+                pass
+        
+        if not user_obj:
+            try:
+                user_obj = User.objects.get(username=identifier)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("Invalid credentials.")
 
         user = authenticate(username=user_obj.username, password=password)
 
@@ -50,7 +62,7 @@ class LoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Your account is awaiting admin approval.")
             return user
             
-        raise serializers.ValidationError("Invalid email or password.")
+        raise serializers.ValidationError("Invalid credentials.")
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:

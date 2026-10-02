@@ -252,7 +252,7 @@ export default function Dashboard() {
             </>
           )}
 
-          <div className="dash-menu-category">My tasks</div>
+          <div className="dash-menu-category">Tasks</div>
           <button 
             className={`dash-nav-item ${activeTab === 'my-tasks' ? 'active' : ''}`}
             onClick={() => {
@@ -260,7 +260,7 @@ export default function Dashboard() {
               navigate('/dashboard');
             }}
           >
-            My Tasks
+            Project Tasks
           </button>
         </div>
 

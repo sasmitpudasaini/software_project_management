@@ -8,7 +8,7 @@ from .models import User, Project
 from .serializers import UserSerializer, RegisterSerializer, LoginSerializer, ProjectSerializer
 
 def get_user_data(user):
-    """Directly maps database permission flags to 1 or 0"""
+    """Ensures database user ID and permission flags are explicitly returned"""
     is_super = user.is_superuser
     
     return {
@@ -80,10 +80,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = User.objects.get(pk=self.request.user.pk)
-        can_update = getattr(user, 'can_update_project', 0)
-        has_update = user.is_superuser or instance.created_by == user or can_update in [True, 1, '1']
-        
-        if has_update:
+        # Strictly restrict deletion ONLY to database user ID 1
+        if user.id == 1:
             instance.delete()
         else:
-            raise PermissionDenied("You do not have permission to delete this project.")
+            raise PermissionDenied("You do not have permission to delete this project. Only user ID 1 is authorized.")

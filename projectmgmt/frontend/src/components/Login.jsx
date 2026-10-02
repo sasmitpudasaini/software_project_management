@@ -12,11 +12,12 @@ export default function Login() {
     e.preventDefault();
 
     try {
-      // 1. Clear out any previous user data/cache from local storage to prevent old names from lingering
+      // 1. Clear out any previous user data/cache from local storage to prevent old data from lingering
       localStorage.removeItem('currentUser');
       localStorage.removeItem('user');
       localStorage.removeItem('loggedInUser');
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('userId');
 
       // 2. Request authentication from your backend database
       const response = await fetch('http://localhost:8000/api/login/', {
@@ -33,9 +34,13 @@ export default function Login() {
         // Extract the user data payload safely
         const userData = data.user || data.data || data;
 
-        // 3. Save the current user to localStorage under both keys so components sync seamlessly
+        // 3. Save the current user and explicitly store the database user ID in localStorage
         localStorage.setItem('currentUser', JSON.stringify(userData));
         localStorage.setItem('user', JSON.stringify(data));
+        
+        if (userData && userData.id !== undefined) {
+          localStorage.setItem('userId', userData.id.toString());
+        }
 
         alert('Login successful!');
         navigate('/dashboard');

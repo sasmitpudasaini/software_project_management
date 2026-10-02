@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
-import Actions from './Actions'; // Import the full-page Actions hub component
+import Actions from './Actions'; 
+import DeleteProject from './DeleteProject';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -13,18 +14,34 @@ function getDynamicStatus(startDate, endDate) {
   return end < today ? 'Completed' : 'Ongoing';
 }
 
-export default function OngoingProjects() {
+export default function OngoingProjects({ currentUser: propCurrentUser }) {
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Full-page View state ('list' or 'actions')
   const [currentView, setCurrentView] = useState('list');
   const [selectedProject, setSelectedProject] = useState(null);
 
-  const [currentUser, setCurrentUser] = useState({});
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const localCurrent = localStorage.getItem('currentUser');
+      if (localCurrent) {
+        const parsed = JSON.parse(localCurrent);
+        return parsed.user || parsed.data || parsed;
+      }
+    } catch (e) {
+      console.error('Error reading localStorage:', e);
+    }
+    return propCurrentUser || {};
+  });
+
+  const [projectToDelete, setProjectToDelete] = useState(null);
+
+  // Strictly verify if the user ID from state or localStorage is 1
+  const userId = Number(currentUser?.id || localStorage.getItem('userId') || 0);
+  const isUserOne = userId === 1;
 
   useEffect(() => {
     fetchInitialData();
@@ -37,7 +54,6 @@ export default function OngoingProjects() {
       return { ...p, calculatedStatus: getDynamicStatus(startDate, endDate) };
     });
 
-    // Keep only ongoing projects
     result = result.filter(p => p.calculatedStatus === 'Ongoing');
 
     if (searchQuery.trim() !== '') {
@@ -55,11 +71,20 @@ export default function OngoingProjects() {
     try {
       setLoading(true);
       const headers = { 'Content-Type': 'application/json' };
+      
       const userRes = await fetch('http://localhost:8000/api/auth/current-user/', { credentials: 'include', headers });
       if (userRes.ok) {
         const userData = await userRes.json();
-        setCurrentUser(userData.user || userData.data || userData);
+        const activeUsr = userData.user || userData.data || userData;
+        if (activeUsr && Object.keys(activeUsr).length > 0) {
+          setCurrentUser(activeUsr);
+          localStorage.setItem('currentUser', JSON.stringify(activeUsr));
+          if (activeUsr.id !== undefined) {
+            localStorage.setItem('userId', activeUsr.id.toString());
+          }
+        }
       }
+
       const projRes = await fetch('http://localhost:8000/api/projects/', { credentials: 'include', headers });
       if (projRes.ok) {
         const data = await projRes.json();
@@ -73,6 +98,7 @@ export default function OngoingProjects() {
 
         setProjects(projArray);
       }
+
       const usersRes = await fetch('http://localhost:8000/api/users/', { credentials: 'include', headers });
       if (usersRes.ok) {
         const data = await usersRes.json();
@@ -105,7 +131,7 @@ export default function OngoingProjects() {
   const getUserDisplayInfo = (identifier) => {
     const sysUser = users.find(u => u.username === identifier || u.email === identifier || u.id?.toString() === identifier?.toString() || u.name === identifier);
     const roleKey = sysUser?.role || sysUser?.userRole || sysUser?.designation || '';
-    let formattedRole = roleKey === 'frontend' ? 'Frontend Developer' : roleKey === 'backend' ? 'Backend Developer' : roleKey === 'fullstack' ? 'Full Stack Developer' : roleKey ? roleKey.charAt(0).toUpperCase() + roleKey.slice(1) : '';
+    let formattedRole = roleKey === 'frontend' ? 'Frontend Developer' : roleKey === 'backend' ? 'Backend Developer' : roleKey === 'fullstack' ? 'Full Stack Developer' : roleKey === 'super_admin' ? 'Super Admin' : roleKey ? roleKey.charAt(0).toUpperCase() + roleKey.slice(1) : '';
     const name = sysUser ? (sysUser.first_name || sysUser.last_name ? `${sysUser.first_name} ${sysUser.last_name}`.trim() : sysUser.username || sysUser.email || sysUser.name || identifier) : identifier;
     return { name, role: formattedRole, email: sysUser?.email || identifier };
   };
@@ -115,41 +141,95 @@ export default function OngoingProjects() {
     setCurrentView('actions');
   };
 
-  // If view is 'actions', render the full-page Actions component
   if (currentView === 'actions') {
+    const projectName = selectedProject?.name || selectedProject?.projectName || selectedProject?.title || selectedProject?.project_name || 'Project';
     return (
-      <Actions
-        project={selectedProject}
-        users={users}
-        currentUser={currentUser}
-        onProjectUpdated={fetchInitialData}
-        onBackToProjects={() => {
-          setCurrentView('list');
-          setSelectedProject(null);
-          fetchInitialData();
-        }}
-        onSaveTasks={async (updatedTasks) => {
-          if (!selectedProject) return;
-          const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
-          const csrftoken = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1];
-          const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
-            },
-            credentials: 'include',
-            body: JSON.stringify({ user_tasks: updatedTasks })
-          });
-          if (response.ok) {
-            const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
-            setSelectedProject(updatedProj);
+      <div className="dash-panel">
+        <div className="projects-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h3 className="projects-title">Project Actions: {projectName}</h3>
+            <p className="projects-description">Manage ongoing project details, team members, and settings.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isUserOne && (
+              <button
+                className="btn-danger"
+                style={{
+                  background: '#dc2626',
+                  color: '#fff',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  fontSize: '0.85rem',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setProjectToDelete(selectedProject)}
+              >
+                Delete Project
+              </button>
+            )}
+            <button 
+              className="btn-secondary" 
+              onClick={() => {
+                setCurrentView('list');
+                setSelectedProject(null);
+                fetchInitialData();
+              }}
+              style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: '600' }}
+            >
+              ← Back to Projects
+            </button>
+          </div>
+        </div>
+
+        <Actions
+          project={selectedProject}
+          users={users}
+          currentUser={currentUser}
+          onProjectUpdated={fetchInitialData}
+          onBackToProjects={() => {
+            setCurrentView('list');
+            setSelectedProject(null);
             fetchInitialData();
-          } else {
-            throw new Error('Failed to save tasks');
-          }
-        }}
-      />
+          }}
+          onSaveTasks={async (updatedTasks) => {
+            if (!selectedProject) return;
+            const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
+            const csrftoken = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1];
+            const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+              },
+              credentials: 'include',
+              body: JSON.stringify({ user_tasks: updatedTasks })
+            });
+            if (response.ok) {
+              const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
+              setSelectedProject(updatedProj);
+              fetchInitialData();
+            } else {
+              throw new Error('Failed to save tasks');
+            }
+          }}
+        />
+
+        {isUserOne && (
+          <DeleteProject
+            isOpen={Boolean(projectToDelete)}
+            onClose={() => setProjectToDelete(null)}
+            onSuccess={() => {
+              setProjectToDelete(null);
+              setCurrentView('list');
+              setSelectedProject(null);
+              fetchInitialData();
+            }}
+            project={projectToDelete}
+          />
+        )}
+      </div>
     );
   }
 
@@ -226,7 +306,7 @@ export default function OngoingProjects() {
                     </td>
                     <td className="date-cell">{startDate}</td>
                     <td className="date-cell">{endDate}</td>
-                    <td className="table-actions" onClick={(e) => e.stopPropagation()}>
+                    <td className="table-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button 
                         className="btn-action" 
                         onClick={(e) => {
@@ -236,6 +316,27 @@ export default function OngoingProjects() {
                       >
                         Open Actions
                       </button>
+                      {isUserOne && (
+                        <button 
+                          className="btn-danger"
+                          style={{
+                            background: '#dc2626',
+                            color: '#fff',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            fontWeight: '600',
+                            fontSize: '0.85rem',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectToDelete(p);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -248,6 +349,15 @@ export default function OngoingProjects() {
           </tbody>
         </table>
       </div>
+
+      {isUserOne && (
+        <DeleteProject
+          isOpen={Boolean(projectToDelete)}
+          onClose={() => setProjectToDelete(null)}
+          onSuccess={fetchInitialData}
+          project={projectToDelete}
+        />
+      )}
     </div>
   );
 }
