@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReadProject from './ReadProject';
 import UsersTask from './UsersTask';
+import UpdateProject from './UpdateProject';
 import AddTasks from './AddTasks';
 import './usermanagement.css';
 import './projects.css';
@@ -113,7 +114,7 @@ export default function Actions({ project, users = [], currentUser, onSaveTasks,
     }
   }, [currentUser]);
 
-  // --- PROJECT DATA STATE (Needed for assigned users & details) ---
+  // --- EDIT PROJECT FORM STATE ---
   const [editForm, setEditForm] = useState({
     id: activeProjectId,
     name: projectName,
@@ -124,6 +125,7 @@ export default function Actions({ project, users = [], currentUser, onSaveTasks,
     assignedUsers: [],
     userPermissions: {}
   });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // --- ADD / EDIT TASK STATE ---
   const [taskTitle, setTaskTitle] = useState('');
@@ -268,6 +270,58 @@ export default function Actions({ project, users = [], currentUser, onSaveTasks,
       }
     }
     return [];
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!isUserOne) {
+      alert('Access Denied. Only the user with ID 1 can edit project settings.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const csrftoken = getCookie('csrftoken');
+      const calculatedStatus = getDynamicStatus(editForm.startDate, editForm.endDate);
+      const targetId = activeProjectId || editForm.id;
+
+      const response = await fetch(`http://localhost:8000/api/projects/${targetId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: editForm.name,
+          projectName: editForm.name,
+          title: editForm.name,
+          project_name: editForm.name,
+          description: editForm.description,
+          start_date: editForm.startDate || null,
+          end_date: editForm.endDate || null,
+          startDate: editForm.startDate || null,
+          endDate: editForm.endDate || null,
+          status: calculatedStatus,
+          assigned_users: editForm.assignedUsers,
+          assignedUsers: editForm.assignedUsers,
+          userPermissions: editForm.userPermissions
+        })
+      });
+
+      if (response.ok) {
+        alert('Project updated successfully!');
+        if (onProjectUpdated) onProjectUpdated();
+      } else {
+        const errorData = await response.json();
+        alert('Failed to update project: ' + JSON.stringify(errorData));
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+      alert('Network error while updating project.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleTaskFormSubmit = async (e) => {
@@ -461,7 +515,13 @@ export default function Actions({ project, users = [], currentUser, onSaveTasks,
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
             <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
               Logged in as: <strong>{currentUsername}</strong> 
-              
+              {isUserOne ? (
+                <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>User ID 1 (Full Access)</span>
+              ) : userCanManageTasks ? (
+                <span style={{ marginLeft: '8px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>Assigned Member</span>
+              ) : (
+                <span style={{ marginLeft: '8px', background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>View-Only</span>
+              )}
             </p>
           </div>
         </div>
@@ -512,7 +572,19 @@ export default function Actions({ project, users = [], currentUser, onSaveTasks,
         handleDeleteTask={handleDeleteTask}
       />
 
-      {/* 3. ADD / EDIT TASKS */}
+      {/* 3. EDIT PROJECT (User ID 1 Only) */}
+      <UpdateProject 
+        isUserOne={isUserOne}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        handleSaveEdit={handleSaveEdit}
+        savingEdit={savingEdit}
+        users={users}
+        getUserDisplayInfo={getUserDisplayInfo}
+        getDynamicStatus={getDynamicStatus}
+      />
+
+      {/* 4. ADD / EDIT TASKS */}
       <AddTasks 
         userCanManageTasks={userCanManageTasks}
         taskToEdit={taskToEdit}

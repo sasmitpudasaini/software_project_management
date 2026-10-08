@@ -1,109 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import './usermanagement.css';
-import './projects.css';
-import './curd.css';
+import React from 'react';
 
-export default function ReadProject({ isOpen, onClose, project, users = [] }) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (project && isOpen) {
-      setIsVisible(true);
-    } else if (isOpen === false || !project) {
-      setIsVisible(false);
-    }
-  }, [project, isOpen]);
-
-  if (!isVisible || !project) return null;
-
-  const handleClose = () => {
-    setIsVisible(false);
-    if (typeof onClose === 'function') {
-      onClose();
-    }
-  };
-
-  const projectName = project.name || project.projectName || project.title || project.project_name || 'Untitled Project';
-  const description = project.description || project.desc || 'No description provided.';
-  const startDate = project.startDate || project.start_date || project.start || 'N/A';
-  const endDate = project.endDate || project.end_date || project.end || 'N/A';
-  
-  const getAssignedUsersArray = (proj) => {
-    const raw = proj.assigned_users || proj.assignedUsers || proj.users || proj.members || proj.team || [];
-    if (Array.isArray(raw)) {
-      return raw.map(u => (typeof u === 'object' && u !== null ? (u.username || u.id?.toString() || u.email) : u)).filter(Boolean);
-    }
-    if (typeof raw === 'string' && raw.trim() !== '') return raw.split(',').map(s => s.trim()).filter(Boolean);
-    return [];
-  };
-
-  const assignedList = getAssignedUsersArray(project);
-
-  const getUserDisplayInfo = (uname) => {
-    const found = Array.isArray(users) ? users.find(u => u.username === uname || u.id?.toString() === uname?.toString() || u.email === uname) : null;
-    if (found) {
-      const roleKey = found.role || found.userRole || found.designation || '';
-      let formattedRole = roleKey === 'frontend' ? 'Frontend Developer' : roleKey === 'backend' ? 'Backend Developer' : roleKey === 'fullstack' ? 'Full Stack Developer' : roleKey ? roleKey.charAt(0).toUpperCase() + roleKey.slice(1) : (found.is_staff || found.is_superuser ? 'Admin' : 'Member');
-      return {
-        name: found.first_name || found.last_name ? `${found.first_name} ${found.last_name}`.trim() : (found.username || found.email),
-        role: formattedRole,
-        email: found.email || uname
-      };
-    }
-    return { name: uname, role: '', email: uname };
-  };
+export default function ReadProject({ project, assignedList, getUserDisplayInfo }) {
+  if (!project) return null;
 
   return (
-    <div 
-      className="read-modal-backdrop" 
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-    >
-      <div className="read-modal-card">
-        <div className="read-modal-header">
-          <h3 className="read-modal-title">Project Details: {projectName}</h3>
-          <button type="button" className="read-modal-close-btn" onClick={handleClose}>✕</button>
-        </div>
-        <div className="read-modal-body">
-          <div>
-            <label className="detail-label">Description</label>
-            <p className="detail-text">{description}</p>
-          </div>
+    <div style={{ marginBottom: '32px', background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+      <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>
+        📄 Project Details
+      </h3>
+      
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Description</label>
+        <p style={{ background: '#ffffff', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', margin: 0, fontSize: '13px', color: '#334155' }}>
+          {project.description || project.desc || 'No description provided.'}
+        </p>
+      </div>
 
-          <div className="grid-two-cols">
-            <div>
-              <label className="detail-label">Start Date</label>
-              <p className="detail-text-simple">{startDate}</p>
-            </div>
-            <div>
-              <label className="detail-label">End Date</label>
-              <p className="detail-text-simple">{endDate}</p>
-            </div>
-          </div>
-
-          <div>
-            <label className="detail-label">Assigned Team Members</label>
-            <div className="team-box-read">
-              {assignedList.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {assignedList.map(uname => {
-                    const userInfo = getUserDisplayInfo(uname);
-                    return (
-                      <span key={uname} className="team-badge">
-                        <strong>{userInfo.name}</strong> {userInfo.role ? `(${userInfo.role})` : ''}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="no-users-text">No users assigned to this project.</p>
-              )}
-            </div>
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+        <div>
+          <label style={{ fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Start Date</label>
+          <p style={{ background: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', margin: 0, fontSize: '13px', color: '#334155' }}>
+            {project.startDate || project.start_date || project.start || 'N/A'}
+          </p>
         </div>
-        <div className="read-modal-footer">
-          <button type="button" className="btn-close-read" onClick={handleClose}>Close</button>
+        <div>
+          <label style={{ fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px', fontSize: '13px' }}>End Date</label>
+          <p style={{ background: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', margin: 0, fontSize: '13px', color: '#334155' }}>
+            {project.endDate || project.end_date || project.end || 'N/A'}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <label style={{ fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Assigned Team Members</label>
+        <div style={{ background: '#ffffff', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+          {assignedList.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {assignedList.map(uname => {
+                const userInfo = getUserDisplayInfo(uname);
+                return (
+                  <span key={uname} style={{ background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '4px', fontSize: '13px' }}>
+                    <strong>{userInfo.name}</strong> {userInfo.role ? `(${userInfo.role})` : ''}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>No users assigned to this project.</p>
+          )}
         </div>
       </div>
     </div>

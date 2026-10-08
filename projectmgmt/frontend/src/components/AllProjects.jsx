@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
 import Actions from './Actions'; 
-import DeleteProject from './DeleteProject';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -25,7 +24,6 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
   const [currentView, setCurrentView] = useState('list');
   const [selectedProject, setSelectedProject] = useState(null);
 
-  // Load user from localStorage immediately
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const localCurrent = localStorage.getItem('currentUser');
@@ -38,12 +36,6 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
     }
     return propCurrentUser || {};
   });
-
-  const [projectToDelete, setProjectToDelete] = useState(null);
-
-  // Strictly verify if the user ID from state or localStorage is 1
-  const userId = Number(currentUser?.id || localStorage.getItem('userId') || 0);
-  const isUserOne = userId === 1;
 
   useEffect(() => {
     fetchInitialData();
@@ -153,25 +145,7 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
             <h3 className="projects-title">Project Actions: {projectName}</h3>
             <p className="projects-description">Manage project details, team members, and settings.</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {isUserOne && (
-              <button
-                className="btn-danger"
-                style={{
-                  background: '#dc2626',
-                  color: '#fff',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontWeight: '600',
-                  fontSize: '0.85rem',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-                onClick={() => setProjectToDelete(selectedProject)}
-              >
-                Delete Project
-              </button>
-            )}
+          <div>
             <button 
               className="btn-secondary" 
               onClick={() => {
@@ -218,20 +192,6 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
             }
           }}
         />
-
-        {isUserOne && (
-          <DeleteProject
-            isOpen={Boolean(projectToDelete)}
-            onClose={() => setProjectToDelete(null)}
-            onSuccess={() => {
-              setProjectToDelete(null);
-              setCurrentView('list');
-              setSelectedProject(null);
-              fetchInitialData();
-            }}
-            project={projectToDelete}
-          />
-        )}
       </div>
     );
   }
@@ -319,7 +279,7 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
                     </td>
                     <td className="date-cell">{startDate}</td>
                     <td className="date-cell">{endDate}</td>
-                    <td className="table-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <td className="table-actions" onClick={(e) => e.stopPropagation()}>
                       <button 
                         className="btn-action" 
                         onClick={(e) => {
@@ -327,29 +287,8 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
                           handleOpenActions(p);
                         }}
                       >
-                        Open Actions
+                        view
                       </button>
-                      {isUserOne && (
-                        <button 
-                          className="btn-danger"
-                          style={{
-                            background: '#dc2626',
-                            color: '#fff',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            fontWeight: '600',
-                            fontSize: '0.85rem',
-                            border: 'none',
-                            cursor: 'pointer'
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setProjectToDelete(p);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
                     </td>
                   </tr>
                 );
@@ -362,15 +301,6 @@ export default function AllProjects({ currentUser: propCurrentUser }) {
           </tbody>
         </table>
       </div>
-
-      {isUserOne && (
-        <DeleteProject
-          isOpen={Boolean(projectToDelete)}
-          onClose={() => setProjectToDelete(null)}
-          onSuccess={fetchInitialData}
-          project={projectToDelete}
-        />
-      )}
     </div>
   );
 }

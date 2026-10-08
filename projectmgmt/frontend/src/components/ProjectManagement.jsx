@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './usermanagement.css';
 import './projects.css';
-import Actions from './Actions'; // Import the full-page Actions hub component
+import AdminActions from './AdminActions'; 
+import DeleteProject from './DeleteProject';
 
 function getDynamicStatus(startDate, endDate) {
   if (!endDate) return 'Ongoing';
@@ -22,7 +23,20 @@ function getDynamicStatus(startDate, endDate) {
 export default function ProjectManagement({ onRead, currentUser: propCurrentUser }) {
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(propCurrentUser || null);
+  
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const localCurrent = localStorage.getItem('currentUser');
+      if (localCurrent) {
+        const parsed = JSON.parse(localCurrent);
+        return parsed.user || parsed.data || parsed;
+      }
+    } catch (e) {
+      console.error('Error reading localStorage:', e);
+    }
+    return propCurrentUser || {};
+  });
+
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -30,6 +44,11 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
   // Full-page View state ('list' or 'actions')
   const [currentView, setCurrentView] = useState('list');
   const [selectedProject, setSelectedProject] = useState(null);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+
+  // Strictly check if user ID is 1
+  const currentUserId = Number(currentUser?.id || localStorage.getItem('userId') || 0);
+  const isUserOne = currentUserId === 1;
 
   const getCookie = (name) => {
     let cookieValue = null;
@@ -53,12 +72,9 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
       
       const requests = [
         fetch('http://localhost:8000/api/projects/', { credentials: 'include', headers }),
-        fetch('http://localhost:8000/api/users/', { credentials: 'include', headers }).catch(() => ({ ok: false }))
+        fetch('http://localhost:8000/api/users/', { credentials: 'include', headers }).catch(() => ({ ok: false })),
+        fetch('http://localhost:8000/api/auth/current-user/', { credentials: 'include', headers }).catch(() => ({ ok: false }))
       ];
-
-      if (!propCurrentUser) {
-        requests.push(fetch('http://localhost:8000/api/auth/current-user/', { credentials: 'include', headers }).catch(() => ({ ok: false })));
-      }
 
       const [projRes, userRes, authRes] = await Promise.all(requests);
 
@@ -66,7 +82,6 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
         const projData = await projRes.json();
         const projArray = Array.isArray(projData) ? projData : (projData.results || projData.data || []);
         
-        // Sort latest created projects on top using created_at
         projArray.sort((a, b) => {
           const dateA = new Date(a.created_at || a.createdAt || 0);
           const dateB = new Date(b.created_at || b.createdAt || 0);
@@ -83,7 +98,14 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
 
       if (authRes && authRes.ok) {
         const authData = await authRes.json();
-        setCurrentUser(authData.user || authData.data || authData);
+        const activeUsr = authData.user || authData.data || authData;
+        if (activeUsr && Object.keys(activeUsr).length > 0) {
+          setCurrentUser(activeUsr);
+          localStorage.setItem('currentUser', JSON.stringify(activeUsr));
+          if (activeUsr.id !== undefined) {
+            localStorage.setItem('userId', activeUsr.id.toString());
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching initial data:', error);
@@ -123,41 +145,96 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
     setCurrentView('actions');
   };
 
-  // If view is 'actions', render the full-page Actions component
+  // If view is 'actions', render the full-page AdminActions component with delete option for User 1
   if (currentView === 'actions') {
+    const projectName = selectedProject?.name || selectedProject?.projectName || selectedProject?.title || selectedProject?.project_name || 'Project';
     return (
-      <Actions
-        project={selectedProject}
-        users={users}
-        currentUser={currentUser}
-        onProjectUpdated={fetchInitialData}
-        onBackToProjects={() => {
-          setCurrentView('list');
-          setSelectedProject(null);
-          fetchInitialData();
-        }}
-        onSaveTasks={async (updatedTasks) => {
-          if (!selectedProject) return;
-          const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
-          const csrftoken = getCookie('csrftoken');
-          const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
-            },
-            credentials: 'include',
-            body: JSON.stringify({ user_tasks: updatedTasks })
-          });
-          if (response.ok) {
-            const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
-            setSelectedProject(updatedProj);
+      <div className="dash-panel">
+        <div className="projects-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h3 className="projects-title">Project Actions: {projectName}</h3>
+            <p className="projects-description">Manage project details, team members, and settings.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isUserOne && (
+              <button
+                className="btn-danger"
+                style={{
+                  background: '#dc2626',
+                  color: '#fff',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  fontSize: '0.85rem',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setProjectToDelete(selectedProject)}
+              >
+                Delete Project
+              </button>
+            )}
+            <button 
+              className="btn-secondary" 
+              onClick={() => {
+                setCurrentView('list');
+                setSelectedProject(null);
+                fetchInitialData();
+              }}
+              style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: '600' }}
+            >
+              ← Back to Projects
+            </button>
+          </div>
+        </div>
+
+        <AdminActions
+          project={selectedProject}
+          users={users}
+          currentUser={currentUser}
+          onProjectUpdated={fetchInitialData}
+          onBackToProjects={() => {
+            setCurrentView('list');
+            setSelectedProject(null);
             fetchInitialData();
-          } else {
-            throw new Error('Failed to save tasks');
-          }
-        }}
-      />
+          }}
+          onSaveTasks={async (updatedTasks) => {
+            if (!selectedProject) return;
+            const projectId = selectedProject.id || selectedProject._id || selectedProject.pk;
+            const csrftoken = getCookie('csrftoken');
+            const response = await fetch(`http://localhost:8000/api/projects/${projectId}/`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {})
+              },
+              credentials: 'include',
+              body: JSON.stringify({ user_tasks: updatedTasks })
+            });
+            if (response.ok) {
+              const updatedProj = { ...selectedProject, user_tasks: updatedTasks };
+              setSelectedProject(updatedProj);
+              fetchInitialData();
+            } else {
+              throw new Error('Failed to save tasks');
+            }
+          }}
+        />
+
+        {isUserOne && (
+          <DeleteProject
+            isOpen={Boolean(projectToDelete)}
+            onClose={() => setProjectToDelete(null)}
+            onSuccess={() => {
+              setProjectToDelete(null);
+              setCurrentView('list');
+              setSelectedProject(null);
+              fetchInitialData();
+            }}
+            project={projectToDelete}
+          />
+        )}
+      </div>
     );
   }
 
@@ -266,7 +343,7 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
                     </td>
                     <td className="date-cell">{startDate}</td>
                     <td className="date-cell">{endDate}</td>
-                    <td className="table-actions" onClick={(e) => e.stopPropagation()}>
+                    <td className="table-actions" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button 
                         className="btn-action" 
                         onClick={(e) => {
@@ -274,8 +351,29 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
                           handleOpenActions(p);
                         }}
                       >
-                        Open Actions
+                        view
                       </button>
+                      {isUserOne && (
+                        <button 
+                          className="btn-danger"
+                          style={{
+                            background: '#dc2626',
+                            color: '#fff',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            fontWeight: '600',
+                            fontSize: '0.85rem',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectToDelete(p);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -290,6 +388,15 @@ export default function ProjectManagement({ onRead, currentUser: propCurrentUser
           </tbody>
         </table>
       </div>
+
+      {isUserOne && (
+        <DeleteProject
+          isOpen={Boolean(projectToDelete)}
+          onClose={() => setProjectToDelete(null)}
+          onSuccess={fetchInitialData}
+          project={projectToDelete}
+        />
+      )}
     </div>
   );
 }

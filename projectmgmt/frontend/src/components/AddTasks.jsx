@@ -1,103 +1,66 @@
-import React, { useState } from 'react';
-import './usermanagement.css';
-import './projects.css';
+import React from 'react';
 
-export default function AddTasks({ existingTasks = [], onSave, currentUser, users = [], projectName, onBack }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmitTask = async (e) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      alert('Please enter a task title.');
-      return;
-    }
-
-    // Retrieve active user straight from localStorage to guarantee correct username tagging
-    let activeUser = null;
-    try {
-      const localCurrent = localStorage.getItem('currentUser');
-      if (localCurrent) {
-        const parsed = JSON.parse(localCurrent);
-        activeUser = parsed.user || parsed.data || parsed;
-      }
-      if (!activeUser) {
-        const localUser = localStorage.getItem('user');
-        if (localUser) {
-          const parsed = JSON.parse(localUser);
-          activeUser = parsed.user || parsed.data || parsed;
-        }
-      }
-    } catch (err) {
-      console.error('Error reading localStorage in AddTasks:', err);
-    }
-
-    const finalUser = activeUser || currentUser;
-    const creatorUsername = finalUser?.username || finalUser?.email || 'User';
-
-    const newTask = {
-      id: Date.now().toString(),
-      title: title.trim(),
-      description: description.trim(),
-      task_created_by: creatorUsername,
-      created_at: new Date().toISOString()
-    };
-
-    // Combine with existing tasks and immediately save to the database
-    const updatedTasks = [...(existingTasks || []), newTask];
-
-    setLoading(true);
-    try {
-      await onSave(updatedTasks);
-      setTitle('');
-      setDescription('');
-    } catch (err) {
-      console.error('Error saving task to database:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function AddTasks({
+  userCanManageTasks,
+  taskToEdit,
+  setTaskToEdit,
+  setTaskTitle,
+  setTaskDescription,
+  handleTaskFormSubmit,
+  taskTitle,
+  taskDescription,
+  taskLoading,
+  currentUsername
+}) {
+  if (!userCanManageTasks) return null;
 
   return (
-    <div className="modal-body" style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h3 style={{ margin: 0, color: '#1e293b' }}>Add Tasks for: {projectName}</h3>
-        <button className="btn-secondary" onClick={onBack} style={{ padding: '6px 12px' }}>Cancel</button>
+    <div id="add-task-section" style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '16px' }}>
+        <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>
+          {taskToEdit ? '✏️ Edit Task Item' : '➕ Add New Task'}
+        </h3>
+        {taskToEdit && (
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setTaskToEdit(null);
+              setTaskTitle('');
+              setTaskDescription('');
+            }}
+            style={{ padding: '4px 10px', fontSize: '0.8rem', cursor: 'pointer' }}
+          >
+            Cancel Edit
+          </button>
+        )}
       </div>
 
-      <form onSubmit={handleSubmitTask} style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-        <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#334155' }}>Add New Task Item</h4>
-        <div className="auth-field" style={{ marginBottom: '12px' }}>
-          <label className="auth-label" style={{ fontSize: '0.85rem', marginBottom: '4px', display: 'block' }}>Task Title</label>
+      <form onSubmit={handleTaskFormSubmit}>
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ fontSize: '13px', marginBottom: '4px', display: 'block', fontWeight: '600', color: '#475569' }}>Task Title</label>
           <input
             type="text"
-            className="form-input"
-            style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', fontSize: '13px' }}
             placeholder="Enter task title..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
             required
           />
         </div>
-        <div className="auth-field" style={{ marginBottom: '12px' }}>
-          <label className="auth-label" style={{ fontSize: '0.85rem', marginBottom: '4px', display: 'block' }}>Task Description</label>
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '13px', marginBottom: '4px', display: 'block', fontWeight: '600', color: '#475569' }}>Task Description</label>
           <textarea
-            className="form-input"
-            style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', minHeight: '80px' }}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', minHeight: '80px', background: '#fff', fontSize: '13px' }}
             placeholder="Enter task description..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={taskDescription}
+            onChange={(e) => setTaskDescription(e.target.value)}
           />
         </div>
-        <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '8px 16px' }}>
-          {loading ? 'Saving to Database...' : 'Add & Save to Database'}
+        <button type="submit" className="btn-primary" disabled={taskLoading} style={{ padding: '8px 16px', fontSize: '13px', cursor: 'pointer' }}>
+          {taskLoading ? 'Saving to Database...' : taskToEdit ? 'Update Task in Database' : `Add Task as ${currentUsername}`}
         </button>
       </form>
-
-      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
-        <button type="button" className="btn-secondary" onClick={onBack}>Close</button>
-      </div>
     </div>
   );
 }

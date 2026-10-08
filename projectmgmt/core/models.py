@@ -23,11 +23,11 @@ class Project(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='projects')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Stores the selected assigned users directly as a JSON list in the project database row
+    # Stores selected assigned users directly as a JSON list in the project database row
     assigned_users = models.JSONField(default=list, blank=True)
     
-    # Stores the project title and a collection of tasks with description and date
-    user_tasks = models.JSONField(default=dict, blank=True)
+    # Stores the collection of tasks created by users for this project
+    user_tasks = models.JSONField(default=list, blank=True)
     
     task_created_by = models.CharField(max_length=150, blank=True, null=True)
 
