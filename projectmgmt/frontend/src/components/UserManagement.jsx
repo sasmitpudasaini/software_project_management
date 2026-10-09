@@ -9,7 +9,6 @@ export default function UserManagement() {
 
   const [editRole, setEditRole] = useState('frontend');
   const [canRead, setCanRead] = useState(true);
-  const [canUpdate, setCanUpdate] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
 
   const getCookie = (name) => {
@@ -36,7 +35,7 @@ export default function UserManagement() {
           (u) => !u.is_superuser && !u.is_staff && u.role !== 'super_admin' && u.role !== 'Admin' && u.role !== 'SuperAdmin'
         );
 
-        // Sort regular users by date_joined descending so the latest created user is displayed on top
+        // Sort regular users by date_joined descending so the latest created user is displayed on top[cite: 5]
         regularUsers.sort((a, b) => {
           const dateA = a.date_joined ? new Date(a.date_joined) : new Date(0);
           const dateB = b.date_joined ? new Date(b.date_joined) : new Date(0);
@@ -81,7 +80,6 @@ export default function UserManagement() {
     setSelectedUserIndex(index);
     setEditRole(user.role || 'frontend');
     setCanRead(user.can_read_project ?? true);
-    setCanUpdate(user.can_update_project ?? false);
     setCanCreate(user.can_create_project ?? false);
     setIsModalOpen(true);
   };
@@ -99,7 +97,6 @@ export default function UserManagement() {
     const payload = {
       role: editRole,
       can_read_project: canRead,
-      can_update_project: canUpdate,
       can_create_project: canCreate,
     };
 
@@ -121,7 +118,6 @@ export default function UserManagement() {
           ...user,
           role: editRole,
           can_read_project: canRead,
-          can_update_project: canUpdate,
           can_create_project: canCreate,
         };
         setUsers(updated);
@@ -140,7 +136,7 @@ export default function UserManagement() {
       <div style={{ marginBottom: '20px' }}>
         <h3 style={{ margin: '0 0 5px 0', color: '#1e293b' }}>User Management & Permissions</h3>
         <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
-          Verify user accounts and manage granular module access control.
+          Verify user accounts and manage granular module access control[cite: 5].
         </p>
       </div>
 
@@ -191,7 +187,7 @@ export default function UserManagement() {
             ) : (
               <tr>
                 <td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                  No regular registered users found.
+                  No regular registered users found[cite: 5].
                 </td>
               </tr>
             )}
@@ -239,13 +235,6 @@ export default function UserManagement() {
                         checked={canRead}
                         onChange={(e) => setCanRead(e.target.checked)}
                       /> Read
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={canUpdate}
-                        onChange={(e) => setCanUpdate(e.target.checked)}
-                      /> Update
                     </label>
                     <label>
                       <input
